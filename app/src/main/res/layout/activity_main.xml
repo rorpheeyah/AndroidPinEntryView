@@ -5,15 +5,163 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    tools:context=".MainActivity">
+    android:background="@color/white"
+    android:fitsSystemWindows="true">
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!"
+    <com.google.android.flexbox.FlexboxLayout
+        android:id="@+id/fl_pin_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical"
+        android:padding="20dp"
+        app:alignItems="center"
+        app:flexDirection="column"
+        app:justifyContent="space_between"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <!-- Basic Usage -->
+        <com.rorpheeyah.java.pinentryview.PinEntryView
+            android:id="@+id/pinEntryView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="៚៚៚៚"
+            android:inputType="numberPassword"
+            android:textColor="#000"
+            android:textColorHint="#aaaaaa"
+            android:textSize="18sp"
+            app:autoFocus="true"
+            tools:ignore="HardcodedText" />
+
+        <!-- Basic Usage -->
+        <com.rorpheeyah.java.pinentryview.PinEntryView
+            android:id="@+id/pinEntryView1"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="៙៙៙៙៙"
+            android:inputType="numberPassword"
+            android:textColor="#000"
+            android:textColorHint="#aaaaaa"
+            android:textSize="18sp"
+            app:itemCount="4"
+            app:viewType="line"
+            app:errorColor="#F44336"
+            app:errorTextColor="#F44336"
+            app:successColor="#4CAF50"
+            app:successTextColor="#4CAF50"
+            app:successEnabled="true"
+            app:successAnimationEnabled="true"
+            app:errorShakeEnabled="true"
+            tools:ignore="HardcodedText" />
+
+        <!-- Rectangular PIN with spacing -->
+        <com.rorpheeyah.java.pinentryview.PinEntryView
+            android:id="@+id/pinEntryView2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="៙៙៙៙៙"
+            android:inputType="number"
+            android:textColor="#3F51B5"
+            android:textColorHint="#aaaaaa"
+            android:textSize="20sp"
+            app:cursorColor="#3F51B5"
+            app:itemCount="5"
+            app:itemHeight="56dp"
+            app:itemRadius="4dp"
+            app:itemSpacing="8dp"
+            app:itemWidth="48dp"
+            app:lineColor="#3F51B5"
+            app:lineWidth="2dp"
+            app:viewType="rectangle"
+            app:errorColor="#F44336"
+            app:errorTextColor="#F44336"
+            app:successColor="#4CAF50"
+            app:successTextColor="#4CAF50"
+            app:successEnabled="true"
+            app:successAnimationEnabled="true"
+            app:errorShakeEnabled="true"
+            tools:ignore="HardcodedText" />
+
+        <!-- Password PIN with dots -->
+        <com.rorpheeyah.java.pinentryview.PinEntryView
+            android:id="@+id/pinEntryView3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:cursorVisible="false"
+            android:hint="៙៙៙៙"
+            android:inputType="numberPassword"
+            android:textColor="#3F51B5"
+            android:textColorHint="#aaaaaa"
+            android:textSize="16sp"
+            app:cursorColor="#3F51B5"
+            app:itemCount="4"
+            app:itemHeight="48dp"
+            app:itemRadius="24dp"
+            app:itemSpacing="8dp"
+            app:itemWidth="48dp"
+            app:lineColor="#3F51B5"
+            app:lineWidth="2dp"
+            app:viewType="circle"
+            app:errorColor="#FF0000"
+            app:errorShakeEnabled="true"
+            tools:ignore="HardcodedText" />
+
+        <!-- Minimalist style with no borders -->
+        <com.rorpheeyah.java.pinentryview.PinEntryView
+            android:id="@+id/pinEntryView4"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:cursorVisible="false"
+            android:hint="៙៙៙៙"
+            android:inputType="number"
+            android:textColor="#000"
+            android:textColorHint="#aaaaaa"
+            android:textSize="24sp"
+            app:itemCount="4"
+            app:itemHeight="60dp"
+            app:itemSpacing="12dp"
+            app:itemWidth="50dp"
+            app:viewType="none"
+            app:errorColor="#F44336"
+            app:errorTextColor="#F44336"
+            app:successColor="#4CAF50"
+            app:successTextColor="#4CAF50"
+            app:successEnabled="true"
+            app:successAnimationEnabled="true"
+            app:errorShakeEnabled="true"
+            tools:ignore="HardcodedText" />
+
+        <!-- Animation enabled PIN for verification codes -->
+        <com.rorpheeyah.java.pinentryview.PinEntryView
+            android:id="@+id/pinEntryView5"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="៙៙៙៙៙"
+            android:inputType="number"
+            android:textColor="#000"
+            android:textColorHint="#aaaaaa"
+            android:textSize="20sp"
+            app:cursorColor="#3F51B5"
+            app:hideLineWhenFilled="true"
+            app:itemCount="5"
+            app:itemHeight="52dp"
+            app:itemRadius="6dp"
+            app:itemSpacing="8dp"
+            app:itemWidth="45dp"
+            app:lineColor="#3F51B5"
+            app:lineWidth="2dp"
+            app:errorColor="#F44336"
+            app:errorTextColor="#F44336"
+            app:successColor="#4CAF50"
+            app:successTextColor="#4CAF50"
+            app:successEnabled="true"
+            app:successAnimationEnabled="true"
+            app:errorShakeEnabled="true"
+            app:viewType="rectangle"
+            tools:ignore="HardcodedText" />
+    </com.google.android.flexbox.FlexboxLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

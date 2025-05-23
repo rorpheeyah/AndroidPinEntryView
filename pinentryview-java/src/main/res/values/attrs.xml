@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="PinEntryView">
+
+        <attr name="viewType" format="enum">
+            <enum name="rectangle" value="0"/>
+            <enum name="line" value="1"/>
+            <enum name="none" value="2"/>
+            <enum name="circle" value="3"/>
+        </attr>
+
+        <attr name="pinGravity" format="enum">
+            <enum name="start" value="0"/>
+            <enum name="center" value="1"/>
+            <enum name="end" value="2"/>
+        </attr>
+
+        <attr name="itemCount" format="integer"/>
+        <attr name="itemWidth" format="dimension"/>
+        <attr name="itemHeight" format="dimension"/>
+        <attr name="itemRadius" format="dimension"/>
+        <attr name="itemSpacing" format="dimension"/>
+        <attr name="lineWidth" format="dimension"/>
+        <attr name="lineColor" format="color|reference"/>
+        <attr name="cursorColor" format="color"/>
+        <attr name="cursorWidth" format="dimension"/>
+        <attr name="hideLineWhenFilled" format="boolean"/>
+        <attr name="autoFocus" format="boolean"/>
+        <attr name="animationEnabled" format="boolean"/>
+        <attr name="passwordHidden" format="boolean"/>
+        <attr name="errorColor" format="color" />
+        <attr name="errorShakeEnabled" format="boolean" />
+        <attr name="errorTextColor" format="color" />
+        <attr name="successColor" format="color" />
+        <attr name="successEnabled" format="boolean" />
+        <attr name="successAnimationEnabled" format="boolean" />
+        <attr name="successTextColor" format="color" />
+    </declare-styleable>
+</resources>
