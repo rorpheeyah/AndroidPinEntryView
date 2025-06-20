@@ -209,6 +209,27 @@ public class PinViewAttributeParser {
                 Log.d(TAG, "✅ Set successAnimationEnabled: " + successAnimEnabled);
             }
 
+            // Item background color
+            if (a.hasValue(R.styleable.PinEntryView_itemBackgroundColor)) {
+                int backgroundColor = a.getColor(R.styleable.PinEntryView_itemBackgroundColor, Color.TRANSPARENT);
+                view.setItemBackgroundColor(backgroundColor);
+                Log.d(TAG, "🎨 Set itemBackgroundColor: #" + Integer.toHexString(0xFFFFFF & backgroundColor));
+            }
+
+            // Error background color
+            if (a.hasValue(R.styleable.PinEntryView_errorBackgroundColor)) {
+                int errorBackgroundColor = a.getColor(R.styleable.PinEntryView_errorBackgroundColor, Color.RED);
+                view.setErrorBackgroundColor(errorBackgroundColor);
+                Log.d(TAG, "🎨 Set errorBackgroundColor: #" + Integer.toHexString(0xFFFFFF & errorBackgroundColor));
+            }
+
+            // Success background color
+            if (a.hasValue(R.styleable.PinEntryView_successBackgroundColor)) {
+                int successBackgroundColor = a.getColor(R.styleable.PinEntryView_successBackgroundColor, Color.GREEN);
+                view.setSuccessBackgroundColor(successBackgroundColor);
+                Log.d(TAG, "🎨 Set successBackgroundColor: #" + Integer.toHexString(0xFFFFFF & successBackgroundColor));
+            }
+
         } catch (Exception e) {
             Log.e(TAG, "⚠️ Error parsing attributes", e);
         } finally {

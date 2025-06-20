@@ -121,18 +121,8 @@ public class PinEntryView extends AppCompatEditText {
     private final TextPaint mAnimatorTextPaint = new TextPaint();
     private final PinViewDrawer mDrawer;
 
-    // Error state properties
-    private boolean mError = false;
-    private int mErrorColor = -1;
-    private boolean mErrorShakeEnabled = false;
-    private int mErrorTextColor = -1;
-
-    // Success state properties
-    private boolean mSuccess = false;
-    private int mSuccessColor = -1;
-    private boolean mSuccessEnabled = false;
-    private boolean mSuccessAnimationEnabled = false;
-    private int mSuccessTextColor = -1;
+    // State management - replaces individual error/success properties
+    private final PinViewStateManager mStateManager;
 
     // Style properties
     private ColorStateList mLineColor;
@@ -141,6 +131,9 @@ public class PinEntryView extends AppCompatEditText {
     private Drawable mItemBackground;
     private boolean mHideLineWhenFilled;
     private boolean mCursorColorSet = false;
+
+    // Background color properties
+    private int mItemBackgroundColor = Color.TRANSPARENT;
 
     // Animation properties
     private android.animation.ValueAnimator mDefaultAddAnimator;
@@ -194,24 +187,30 @@ public class PinEntryView extends AppCompatEditText {
         super(context, attrs, defStyleAttr);
 
         // Initialize drawing tools
-        // Drawing tools
         Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         mPaint.setStyle(Paint.Style.STROKE);
         mAnimatorTextPaint.set(getPaint());
         mDrawer = new PinViewDrawer(this, mPaint, mAnimatorTextPaint);
 
+        // Set default values FIRST
+        initDefaultValues();
+
+        // Initialize state manager early to prevent null pointer issues
+        mStateManager = new PinViewStateManager(this);
+
         // Create attribute parser
         PinViewAttributeParser mAttributeParser = new PinViewAttributeParser(context);
-
-        // Set default values
-        initDefaultValues();
 
         // Parse attributes if provided
         if (attrs != null) {
             mAttributeParser.parseAttributes(this, attrs, defStyleAttr);
         }
 
-        mCurLineColor = mLineColor.getDefaultColor();
+        // Initialize mPasswordHidden after attributes are parsed, as it can be set in XML
+        mPasswordHidden = PinViewUtils.isPasswordInputType(getInputType());
+
+        // Set line color after mLineColor is initialized by initDefaultValues or attributes
+        mCurLineColor = mLineColor != null ? mLineColor.getDefaultColor() : Color.BLACK;
         updateCursorHeight();
         checkItemRadius();
 
@@ -226,8 +225,6 @@ public class PinEntryView extends AppCompatEditText {
         setTransformationMethod(null);
         disableSelectionMenu();
         setupStyle();
-
-        mPasswordHidden = PinViewUtils.isPasswordInputType(getInputType());
 
         Log.i(TAG, "🔐 PinEntryView initialized with " + mPinItemCount + " items");
     }
@@ -252,11 +249,6 @@ public class PinEntryView extends AppCompatEditText {
         mCursorWidth = PinViewUtils.dpToPx(getContext(), 2);
         mHideLineWhenFilled = false;
         mAutoFocus = false;
-        mErrorColor = -1;
-        mErrorShakeEnabled = false;
-        mSuccessColor = -1;
-        mSuccessEnabled = false;
-        mSuccessAnimationEnabled = false;
     }
 
     /**
@@ -533,13 +525,13 @@ public class PinEntryView extends AppCompatEditText {
         super.onTextChanged(text, start, lengthBefore, lengthAfter);
 
         // Clear error when text changes
-        if (mError && (lengthAfter != lengthBefore)) {
-            setErrorState(false);
+        if (mStateManager != null && mStateManager.isError() && (lengthAfter != lengthBefore)) {
+            setState(PinViewState.Type.NORMAL);
         }
 
         // Clear success when text changes
-        if (mSuccess && (lengthAfter != lengthBefore)) {
-            setSuccessState(false);
+        if (mStateManager != null && mStateManager.isSuccess() && (lengthAfter != lengthBefore)) {
+            setState(PinViewState.Type.NORMAL);
         }
 
         if (start != text.length()) {
@@ -904,12 +896,7 @@ public class PinEntryView extends AppCompatEditText {
      */
     @ColorInt
     public int getCurrentLineColor() {
-        if (mSuccess && mSuccessEnabled && mSuccessColor != -1) {
-            return mSuccessColor;
-        } else if (mError && mErrorColor != -1) {
-            return mErrorColor;
-        }
-        return mCurLineColor;
+        return mStateManager.getActiveLineColor();
     }
 
     /**
@@ -919,241 +906,159 @@ public class PinEntryView extends AppCompatEditText {
      */
     @ColorInt
     public int getActiveTextColor() {
-        if (mSuccess && mSuccessEnabled && mSuccessTextColor != -1) {
-            return mSuccessTextColor;
-        } else if (mError && mErrorTextColor != -1) {
-            return mErrorTextColor;
+        return mStateManager.getActiveTextColor();
+    }
+
+    /**
+     * Sets the view state
+     *
+     * @param state The state to set (NORMAL, ERROR, SUCCESS)
+     */
+    public void setState(PinViewState.Type state) {
+        switch (state) {
+            case ERROR:
+                mStateManager.setError(true);
+                break;
+            case SUCCESS:
+                mStateManager.setSuccess(true);
+                break;
+            default:
+                mStateManager.setError(false);
+                mStateManager.setSuccess(false);
+                break;
         }
-        return super.getCurrentTextColor();
+        Log.d(TAG, "🎛️ State set to: " + state);
     }
 
     /**
-     * Sets error state for the PIN entry view
+     * Gets the current view state
      *
-     * @param error True to show error state, false to hide
+     * @return The current state (NORMAL, ERROR, SUCCESS)
      */
-    public void setErrorState(boolean error) {
-        mError = error;
-        if (mError) {
-            mSuccess = false;  // Clear success state when setting error
-            if (mErrorShakeEnabled && mErrorColor != -1) {
-                shakeAnimation();
-            }
+    public PinViewState.Type getState() {
+        if (mStateManager.isError()) return PinViewState.Type.ERROR;
+        if (mStateManager.isSuccess()) return PinViewState.Type.SUCCESS;
+        return PinViewState.Type.NORMAL;
+    }
+
+    /**
+     * Checks if the view is in a specific state
+     *
+     * @param state The state to check
+     * @return True if in the specified state, false otherwise
+     */
+    public boolean isInState(PinViewState.Type state) {
+        return getState() == state;
+    }
+
+    /**
+     * Sets the text color for a specific state
+     *
+     * @param state The state to set color for (ERROR, SUCCESS)
+     * @param color The color to use
+     */
+    public void setStateTextColor(PinViewState.Type state, @ColorInt int color) {
+        switch (state) {
+            case ERROR:
+                mStateManager.setErrorTextColor(color);
+                break;
+            case SUCCESS:
+                mStateManager.setSuccessTextColor(color);
+                break;
         }
-        invalidate();
-        Log.d(TAG, "⚠️ Error state set to: " + error);
     }
 
     /**
-     * Sets error state with custom color
+     * Gets the text color for a specific state
      *
-     * @param error True to show error state, false to hide
-     * @param errorColor The color to use for the error state
-     */
-    public void setErrorState(boolean error, @ColorInt int errorColor) {
-        setErrorColor(errorColor);
-        setErrorState(error);
-    }
-
-    /**
-     * Checks if the view is in error state
-     *
-     * @return True if in error state, false otherwise
-     */
-    public boolean isError() {
-        return mError;
-    }
-
-    /**
-     * Sets the error color
-     *
-     * @param errorColor The color to use for error state
-     */
-    public void setErrorColor(@ColorInt int errorColor) {
-        mErrorColor = errorColor;
-        if (mError) {
-            invalidate();
-        }
-        Log.d(TAG, "🎨 Error color set to: #" + Integer.toHexString(0xFFFFFF & errorColor));
-    }
-
-    /**
-     * Gets the current error color
-     *
-     * @return The error color
+     * @param state The state to get color for
+     * @return The color for the state
      */
     @ColorInt
-    public int getErrorColor() {
-        return mErrorColor;
-    }
-
-    /**
-     * Sets the error text color
-     *
-     * @param errorTextColor The color to use for text in error state
-     */
-    public void setErrorTextColor(@ColorInt int errorTextColor) {
-        mErrorTextColor = errorTextColor;
-        if (mError) {
-            invalidate();
+    public int getStateTextColor(PinViewState.Type state) {
+        switch (state) {
+            case ERROR:
+                return mStateManager.getErrorTextColor();
+            case SUCCESS:
+                return mStateManager.getSuccessTextColor();
+            default:
+                return getCurrentTextColor();
         }
-        Log.d(TAG, "🎨 Error text color set to: #" + Integer.toHexString(0xFFFFFF & errorTextColor));
     }
 
     /**
-     * Gets the current error text color
+     * Sets the background color for a specific state
      *
-     * @return The error text color
+     * @param state The state to set color for (ERROR, SUCCESS)
+     * @param color The color to use
+     */
+    public void setStateBackgroundColor(PinViewState.Type state, @ColorInt int color) {
+        switch (state) {
+            case ERROR:
+                mStateManager.setErrorBackgroundColor(color);
+                break;
+            case SUCCESS:
+                mStateManager.setSuccessBackgroundColor(color);
+                break;
+        }
+    }
+
+    /**
+     * Gets the background color for a specific state
+     *
+     * @param state The state to get color for
+     * @return The color for the state
      */
     @ColorInt
-    public int getErrorTextColor() {
-        return mErrorTextColor;
-    }
-
-    /**
-     * Sets whether shake animation is enabled for error state
-     *
-     * @param enabled True to enable shake animation, false to disable
-     */
-    public void setErrorShakeEnabled(boolean enabled) {
-        mErrorShakeEnabled = enabled;
-        Log.d(TAG, "🔄 Error shake animation " + (enabled ? "enabled" : "disabled"));
-    }
-
-    /**
-     * Checks if shake animation is enabled for error state
-     *
-     * @return True if shake animation is enabled, false otherwise
-     */
-    public boolean isErrorShakeEnabled() {
-        return mErrorShakeEnabled;
-    }
-
-    /**
-     * Sets success state for the PIN entry view
-     *
-     * @param success True to show success state, false to hide
-     */
-    public void setSuccessState(boolean success) {
-        mSuccess = success;
-        if (mSuccess && mSuccessEnabled) {
-            mError = false;  // Clear error state when setting success
-            if (mSuccessAnimationEnabled && mSuccessColor != -1) {
-                successAnimation();
-            }
+    public int getStateBackgroundColor(PinViewState.Type state) {
+        switch (state) {
+            case ERROR:
+                return mStateManager.getErrorBackgroundColor();
+            case SUCCESS:
+                return mStateManager.getSuccessBackgroundColor();
+            default:
+                return mItemBackgroundColor;
         }
-        invalidate();
-        Log.d(TAG, "✅ Success state set to: " + success);
     }
 
     /**
-     * Sets success state with custom color
+     * Sets whether animation is enabled for a state
      *
-     * @param success True to show success state, false to hide
-     * @param successColor The color to use for the success state
+     * @param state The state to configure (ERROR, SUCCESS)
+     * @param enabled True to enable animation, false to disable
      */
-    public void setSuccessState(boolean success, @ColorInt int successColor) {
-        setSuccessColor(successColor);
-        setSuccessState(success);
-    }
-
-    /**
-     * Checks if the view is in success state
-     *
-     * @return True if in success state, false otherwise
-     */
-    public boolean isSuccess() {
-        return mSuccess;
-    }
-
-    /**
-     * Sets the success color
-     *
-     * @param successColor The color to use for success state
-     */
-    public void setSuccessColor(@ColorInt int successColor) {
-        mSuccessColor = successColor;
-        if (mSuccess) {
-            invalidate();
+    public void setStateAnimationEnabled(PinViewState.Type state, boolean enabled) {
+        switch (state) {
+            case ERROR:
+                mStateManager.setErrorShakeEnabled(enabled);
+                break;
+            case SUCCESS:
+                mStateManager.setSuccessAnimationEnabled(enabled);
+                break;
         }
-        Log.d(TAG, "🎨 Success color set to: #" + Integer.toHexString(0xFFFFFF & successColor));
     }
 
     /**
-     * Gets the current success color
+     * Checks if animation is enabled for a state
      *
-     * @return The success color
+     * @param state The state to check (ERROR, SUCCESS)
+     * @return True if animation is enabled, false otherwise
      */
-    @ColorInt
-    public int getSuccessColor() {
-        return mSuccessColor;
-    }
-
-    /**
-     * Sets the success text color
-     *
-     * @param successTextColor The color to use for text in success state
-     */
-    public void setSuccessTextColor(@ColorInt int successTextColor) {
-        mSuccessTextColor = successTextColor;
-        if (mSuccess) {
-            invalidate();
+    public boolean isStateAnimationEnabled(PinViewState.Type state) {
+        switch (state) {
+            case ERROR:
+                return mStateManager.isErrorShakeEnabled();
+            case SUCCESS:
+                return mStateManager.isSuccessAnimationEnabled();
+            default:
+                return false;
         }
-        Log.d(TAG, "🎨 Success text color set to: #" + Integer.toHexString(0xFFFFFF & successTextColor));
-    }
-
-    /**
-     * Gets the current success text color
-     *
-     * @return The success text color
-     */
-    @ColorInt
-    public int getSuccessTextColor() {
-        return mSuccessTextColor;
-    }
-
-    /**
-     * Sets whether success state is enabled
-     *
-     * @param enabled True to enable success state, false to disable
-     */
-    public void setSuccessEnabled(boolean enabled) {
-        mSuccessEnabled = enabled;
-        Log.d(TAG, "✅ Success state " + (enabled ? "enabled" : "disabled"));
-    }
-
-    /**
-     * Checks if success state is enabled
-     *
-     * @return True if success state is enabled, false otherwise
-     */
-    public boolean isSuccessEnabled() {
-        return mSuccessEnabled;
-    }
-
-    /**
-     * Sets whether success animation is enabled
-     *
-     * @param enabled True to enable success animation, false to disable
-     */
-    public void setSuccessAnimationEnabled(boolean enabled) {
-        mSuccessAnimationEnabled = enabled;
-        Log.d(TAG, "✅ Success animation " + (enabled ? "enabled" : "disabled"));
-    }
-
-    /**
-     * Checks if success animation is enabled
-     *
-     * @return True if success animation is enabled, false otherwise
-     */
-    public boolean isSuccessAnimationEnabled() {
-        return mSuccessAnimationEnabled;
     }
 
     /**
      * Performs a success animation on the view
      */
-    private void successAnimation() {
+    void successAnimation() {
         try {
             // Scale up and down animation for success state
             android.animation.AnimatorSet animatorSet = new android.animation.AnimatorSet();
@@ -1176,7 +1081,7 @@ public class PinEntryView extends AppCompatEditText {
     /**
      * Performs a shake animation on the view
      */
-    private void shakeAnimation() {
+    void shakeAnimation() {
         try {
             android.animation.ObjectAnimator animator = android.animation.ObjectAnimator.ofFloat(
                     this, "translationX", 0, 15, -15, 15, -15, 8, -8, 0);
@@ -1424,12 +1329,317 @@ public class PinEntryView extends AppCompatEditText {
      * @param color The color to use
      */
     public void setItemBackgroundColor(@ColorInt int color) {
+        mItemBackgroundColor = color;
+
+        // If we currently have a ColorDrawable background, update it
+        // Otherwise, let the drawing logic handle it
         if (mItemBackground instanceof ColorDrawable) {
             ((ColorDrawable) mItemBackground.mutate()).setColor(color);
-        } else {
-            setItemBackground(new ColorDrawable(color));
         }
+
+        invalidate();
         Log.d(TAG, "🎨 Item background color set to: #" + Integer.toHexString(0xFFFFFF & color));
+    }
+
+    /**
+     * Gets the item background color.
+     *
+     * @return The item background color
+     */
+    @ColorInt
+    public int getItemBackgroundColor() {
+        return mItemBackgroundColor;
+    }
+
+    /**
+     * Gets the current background color based on the view state.
+     *
+     * @return The current background color
+     */
+    @ColorInt
+    public int getCurrentBackgroundColor() {
+        return mStateManager.getActiveBackgroundColor();
+    }
+
+    /**
+     * Sets the line color for a specific state
+     *
+     * @param state The state to set color for (ERROR, SUCCESS)
+     * @param color The color to use
+     */
+    public void setStateLineColor(PinViewState.Type state, @ColorInt int color) {
+        switch (state) {
+            case ERROR:
+                mStateManager.setErrorColor(color);
+                break;
+            case SUCCESS:
+                mStateManager.setSuccessColor(color);
+                break;
+        }
+        Log.d(TAG, "🎨 " + state + " line color set to: #" + Integer.toHexString(0xFFFFFF & color));
+    }
+
+    /**
+     * Gets the line color for a specific state
+     *
+     * @param state The state to get color for
+     * @return The color for the state
+     */
+    @ColorInt
+    public int getStateLineColor(PinViewState.Type state) {
+        switch (state) {
+            case ERROR:
+                return mStateManager.getErrorColor();
+            case SUCCESS:
+                return mStateManager.getSuccessColor();
+            default:
+                return mCurLineColor;
+        }
+    }
+
+    // ===== BACKWARD COMPATIBILITY METHODS (NON-DEPRECATED) =====
+
+    /**
+     * Sets error state for the PIN entry view
+     *
+     * @param error True to show error state, false to hide
+     */
+    public void setErrorState(boolean error) {
+        if (error) {
+            setState(PinViewState.Type.ERROR);
+        } else {
+            setState(PinViewState.Type.NORMAL);
+        }
+    }
+
+    /**
+     * Sets error state with custom color
+     *
+     * @param error      True to show error state, false to hide
+     * @param errorColor The color to use for the error state
+     */
+    public void setErrorState(boolean error, @ColorInt int errorColor) {
+        if (error) {
+            setStateLineColor(PinViewState.Type.ERROR, errorColor);
+            setState(PinViewState.Type.ERROR);
+        } else {
+            setState(PinViewState.Type.NORMAL);
+        }
+    }
+
+    /**
+     * Checks if the view is in error state
+     *
+     * @return True if in error state, false otherwise
+     */
+    public boolean isError() {
+        return isInState(PinViewState.Type.ERROR);
+    }
+
+    /**
+     * Sets success state for the PIN entry view
+     *
+     * @param success True to show success state, false to hide
+     */
+    public void setSuccessState(boolean success) {
+        if (success) {
+            setState(PinViewState.Type.SUCCESS);
+        } else {
+            setState(PinViewState.Type.NORMAL);
+        }
+    }
+
+    /**
+     * Sets success state with custom color
+     *
+     * @param success      True to show success state, false to hide
+     * @param successColor The color to use for the success state
+     */
+    public void setSuccessState(boolean success, @ColorInt int successColor) {
+        if (success) {
+            setStateLineColor(PinViewState.Type.SUCCESS, successColor);
+            setState(PinViewState.Type.SUCCESS);
+        } else {
+            setState(PinViewState.Type.NORMAL);
+        }
+    }
+
+    /**
+     * Checks if the view is in success state
+     *
+     * @return True if in success state, false otherwise
+     */
+    public boolean isSuccess() {
+        return isInState(PinViewState.Type.SUCCESS);
+    }
+
+    /**
+     * Sets the error color
+     *
+     * @param errorColor The color to use for error state
+     */
+    public void setErrorColor(@ColorInt int errorColor) {
+        setStateLineColor(PinViewState.Type.ERROR, errorColor);
+    }
+
+    /**
+     * Gets the current error color
+     *
+     * @return The error color
+     */
+    @ColorInt
+    public int getErrorColor() {
+        return getStateLineColor(PinViewState.Type.ERROR);
+    }
+
+    /**
+     * Sets the error text color
+     *
+     * @param errorTextColor The color to use for text in error state
+     */
+    public void setErrorTextColor(@ColorInt int errorTextColor) {
+        setStateTextColor(PinViewState.Type.ERROR, errorTextColor);
+    }
+
+    /**
+     * Gets the current error text color
+     *
+     * @return The error text color
+     */
+    @ColorInt
+    public int getErrorTextColor() {
+        return getStateTextColor(PinViewState.Type.ERROR);
+    }
+
+    /**
+     * Sets whether shake animation is enabled for error state
+     *
+     * @param enabled True to enable shake animation, false to disable
+     */
+    public void setErrorShakeEnabled(boolean enabled) {
+        setStateAnimationEnabled(PinViewState.Type.ERROR, enabled);
+    }
+
+    /**
+     * Checks if shake animation is enabled for error state
+     *
+     * @return True if shake animation is enabled, false otherwise
+     */
+    public boolean isErrorShakeEnabled() {
+        return isStateAnimationEnabled(PinViewState.Type.ERROR);
+    }
+
+    /**
+     * Sets the success color
+     *
+     * @param successColor The color to use for success state
+     */
+    public void setSuccessColor(@ColorInt int successColor) {
+        setStateLineColor(PinViewState.Type.SUCCESS, successColor);
+    }
+
+    /**
+     * Gets the current success color
+     *
+     * @return The success color
+     */
+    @ColorInt
+    public int getSuccessColor() {
+        return getStateLineColor(PinViewState.Type.SUCCESS);
+    }
+
+    /**
+     * Sets the success text color
+     *
+     * @param successTextColor The color to use for text in success state
+     */
+    public void setSuccessTextColor(@ColorInt int successTextColor) {
+        setStateTextColor(PinViewState.Type.SUCCESS, successTextColor);
+    }
+
+    /**
+     * Gets the current success text color
+     *
+     * @return The success text color
+     */
+    @ColorInt
+    public int getSuccessTextColor() {
+        return getStateTextColor(PinViewState.Type.SUCCESS);
+    }
+
+    /**
+     * Sets whether success state is enabled
+     *
+     * @param enabled True to enable success state, false to disable
+     */
+    public void setSuccessEnabled(boolean enabled) {
+        // This is handled automatically by the state manager
+        Log.d(TAG, "✅ Success state " + (enabled ? "enabled" : "disabled"));
+    }
+
+    /**
+     * Checks if success state is enabled
+     *
+     * @return True if success state is enabled, false otherwise
+     */
+    public boolean isSuccessEnabled() {
+        return mStateManager.isSuccessEnabled();
+    }
+
+    /**
+     * Sets whether success animation is enabled
+     *
+     * @param enabled True to enable success animation, false to disable
+     */
+    public void setSuccessAnimationEnabled(boolean enabled) {
+        setStateAnimationEnabled(PinViewState.Type.SUCCESS, enabled);
+    }
+
+    /**
+     * Checks if success animation is enabled
+     *
+     * @return True if success animation is enabled, false otherwise
+     */
+    public boolean isSuccessAnimationEnabled() {
+        return isStateAnimationEnabled(PinViewState.Type.SUCCESS);
+    }
+
+    /**
+     * Sets the error background color for pin items
+     *
+     * @param color The color to use for error state
+     */
+    public void setErrorBackgroundColor(@ColorInt int color) {
+        setStateBackgroundColor(PinViewState.Type.ERROR, color);
+    }
+
+    /**
+     * Gets the error background color
+     *
+     * @return The error background color
+     */
+    @ColorInt
+    public int getErrorBackgroundColor() {
+        return getStateBackgroundColor(PinViewState.Type.ERROR);
+    }
+
+    /**
+     * Sets the success background color for pin items
+     *
+     * @param color The color to use for success state
+     */
+    public void setSuccessBackgroundColor(@ColorInt int color) {
+        setStateBackgroundColor(PinViewState.Type.SUCCESS, color);
+    }
+
+    /**
+     * Gets the success background color
+     *
+     * @return The success background color
+     */
+    @ColorInt
+    public int getSuccessBackgroundColor() {
+        return getStateBackgroundColor(PinViewState.Type.SUCCESS);
     }
 
     /**

@@ -3,12 +3,13 @@ package com.rorpheeyah.androidpinentryview
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.graphics.Insets
-import androidx.core.graphics.toColorInt
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import com.rorpheeyah.androidpinentryview.R
 import com.rorpheeyah.java.pinentryview.PinEntryView
+import com.rorpheeyah.java.pinentryview.PinViewState
+import kotlin.math.max
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -16,47 +17,52 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
-        // Only apply system bar insets, ignore IME
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
-            v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime())
 
-            // Return modified insets without consuming IME insets
-            WindowInsetsCompat.Builder(insets)
-                .setInsets(WindowInsetsCompat.Type.ime(), Insets.NONE)
-                .build()
+            // Apply padding for system bars
+            v.setPadding(
+                systemBars.left,
+                systemBars.top,
+                systemBars.right,
+                // Use the larger of system bar bottom or IME height
+                max(systemBars.bottom, ime.bottom)
+            )
+
+            // Consume the insets
+            WindowInsetsCompat.CONSUMED
         }
 
         WindowCompat.setDecorFitsSystemWindows(window, true)
 
-        // Setup pin entry view with error handling
+        // Setup pin entry view with new clean state API
         val pinEntryView = findViewById<PinEntryView>(R.id.pinEntryView)
-        pinEntryView.setSuccessColor("#4CAF50".toColorInt())
         pinEntryView.setOnPinEnteredListener { pin ->
-            // Example validation - in a real app, you would validate against a real PIN
             if (pin != "1234") {
-                pinEntryView.setErrorState(true)
-                pinEntryView.setSuccessState(false)
+                pinEntryView.setState(PinViewState.Type.ERROR)
             } else {
-                pinEntryView.setErrorState(false)
-                pinEntryView.setSuccessState(true)
+                pinEntryView.setState(PinViewState.Type.SUCCESS)
             }
         }
 
         val pinEntryView1 = findViewById<PinEntryView>(R.id.pinEntryView1)
+
+        // BACKWARD COMPATIBLE WAY - Still works for existing code
         pinEntryView1.setOnPinEnteredListener { pin ->
-            // Example validation - in a real app, you would validate against a real PIN
             if (pin != "5678") {
                 pinEntryView1.setErrorState(true)
-                pinEntryView1.setSuccessState(false)
             } else {
-                pinEntryView1.setErrorState(false)
                 pinEntryView1.setSuccessState(true)
             }
         }
 
         // Setup circle pin view with different error handling example
         val circlePinView = findViewById<PinEntryView>(R.id.pinEntryView3)
+
+        // Configure success animation for this view
+        circlePinView.setStateAnimationEnabled(PinViewState.Type.SUCCESS, true)
+
         circlePinView.setOnPinEnteredListener { pin ->
             // Example: Check if PIN has sequential digits (e.g., 1234, 4567)
             var isSequential = true
@@ -68,10 +74,9 @@ class MainActivity : AppCompatActivity() {
             }
 
             if (isSequential) {
-                circlePinView.setSuccessState(false)
+                circlePinView.setState(PinViewState.Type.ERROR)
             } else {
-                circlePinView.setErrorState(false)
-                circlePinView.setSuccessAnimationEnabled(true)
+                circlePinView.setState(PinViewState.Type.SUCCESS)
             }
         }
     }

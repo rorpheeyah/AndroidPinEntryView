@@ -44,7 +44,6 @@ dependencies {
     implementation(libs.flexbox)
 
     implementation(project(":pinentryview-java"))
-    implementation(project(":pinentryview-kotlin"))
 
     // Unit tests
     testImplementation(libs.junit)

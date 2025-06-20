@@ -35,5 +35,8 @@
         <attr name="successEnabled" format="boolean" />
         <attr name="successAnimationEnabled" format="boolean" />
         <attr name="successTextColor" format="color" />
+        <attr name="itemBackgroundColor" format="color" />
+        <attr name="errorBackgroundColor" format="color" />
+        <attr name="successBackgroundColor" format="color" />
     </declare-styleable>
 </resources>

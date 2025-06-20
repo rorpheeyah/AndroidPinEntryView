@@ -55,11 +55,32 @@ public class PinViewDrawer {
     public void drawPinView(Canvas canvas) {
         try {
             int highlightIdx = mView.getLength();
+            PinViewState.Type currentOverallState = mView.getState();
+
             for (int i = 0; i < mView.getItemCount(); i++) {
                 boolean highlight = mView.isFocused() && highlightIdx == i;
-                mPaint.setColor(highlight ?
-                        mView.getLineColorForState(HIGHLIGHT_STATES) :
-                        mView.getCurrentLineColor());
+                int itemLineColor;
+
+                // Determine the line color based on overall state and highlight
+                if (currentOverallState == PinViewState.Type.ERROR) {
+                    itemLineColor = mView.getStateLineColor(PinViewState.Type.ERROR);
+                    // If error color is not set for the state, fall back to default error or normal highlight logic
+                    if (itemLineColor == -1) { // Assuming -1 means not set
+                        itemLineColor = highlight ? mView.getLineColorForState(HIGHLIGHT_STATES) : mView.getLineColors().getDefaultColor();
+                    }
+                } else if (currentOverallState == PinViewState.Type.SUCCESS) {
+                    itemLineColor = mView.getStateLineColor(PinViewState.Type.SUCCESS);
+                    // If success color is not set, fall back
+                    if (itemLineColor == -1) {
+                        itemLineColor = highlight ? mView.getLineColorForState(HIGHLIGHT_STATES) : mView.getLineColors().getDefaultColor();
+                    }
+                } else {
+                    // Normal state: use focused/unfocused colors
+                    itemLineColor = highlight ?
+                            mView.getLineColorForState(HIGHLIGHT_STATES) :
+                            mView.getLineColors().getColorForState(mView.getDrawableState(), mView.getLineColors().getDefaultColor());
+                }
+                mPaint.setColor(itemLineColor);
 
                 updateItemRectF(i);
                 updateCenterPoint();
@@ -109,36 +130,43 @@ public class PinViewDrawer {
                     }
                 } else if (mView.getHint() != null &&
                         !TextUtils.isEmpty(mView.getHint())) {
-                    // Draw hint regardless of viewType and without strict length matching
                     drawHint(canvas, i);
                 }
             }
 
-            // Highlight the next item
-            if (mView.isFocused() &&
-                    mView.getLength() != mView.getItemCount() &&
-                    mView.getViewType() == PinEntryView.VIEW_TYPE_RECTANGLE) {
-                try {
-                    int index = mView.getLength();
-                    updateItemRectF(index);
-                    updateCenterPoint();
-                    updatePinBoxPath(index);
-                    mPaint.setColor(mView.getLineColorForState(HIGHLIGHT_STATES));
-                    drawPinBox(canvas, index);
-                } catch (Exception e) {
-                    Log.e(TAG, "⚠️ Error highlighting next item", e);
+            // Highlight the next item (the one that will receive input)
+            if (mView.isFocused() && mView.getLength() != mView.getItemCount()) {
+                int index = mView.getLength();
+                updateItemRectF(index);
+                updateCenterPoint();
+
+                int nextItemHighlightColor;
+                if (currentOverallState == PinViewState.Type.ERROR) {
+                    nextItemHighlightColor = mView.getStateLineColor(PinViewState.Type.ERROR);
+                    if (nextItemHighlightColor == -1)
+                        nextItemHighlightColor = mView.getLineColorForState(HIGHLIGHT_STATES);
+                } else if (currentOverallState == PinViewState.Type.SUCCESS) {
+                    nextItemHighlightColor = mView.getStateLineColor(PinViewState.Type.SUCCESS);
+                    if (nextItemHighlightColor == -1)
+                        nextItemHighlightColor = mView.getLineColorForState(HIGHLIGHT_STATES);
+                } else {
+                    nextItemHighlightColor = mView.getLineColorForState(HIGHLIGHT_STATES);
                 }
-            } else if (mView.isFocused() &&
-                    mView.getLength() != mView.getItemCount() &&
-                    mView.getViewType() == PinEntryView.VIEW_TYPE_CIRCLE) {
-                try {
-                    int index = mView.getLength();
-                    updateItemRectF(index);
-                    updateCenterPoint();
-                    mPaint.setColor(mView.getLineColorForState(HIGHLIGHT_STATES));
-                    drawPinCircle(canvas, index);
-                } catch (Exception e) {
-                    Log.e(TAG, "⚠️ Error highlighting next circle item", e);
+                mPaint.setColor(nextItemHighlightColor);
+
+                if (mView.getViewType() == PinEntryView.VIEW_TYPE_RECTANGLE) {
+                    try {
+                        updatePinBoxPath(index);
+                        drawPinBox(canvas, index);
+                    } catch (Exception e) {
+                        Log.e(TAG, "⚠️ Error highlighting next rectangle item", e);
+                    }
+                } else if (mView.getViewType() == PinEntryView.VIEW_TYPE_CIRCLE) {
+                    try {
+                        drawPinCircle(canvas, index);
+                    } catch (Exception e) {
+                        Log.e(TAG, "⚠️ Error highlighting next circle item", e);
+                    }
                 }
             }
         } catch (Exception e) {
@@ -164,18 +192,36 @@ public class PinViewDrawer {
      */
     private void drawItemBackground(Canvas canvas, boolean highlight) {
         Drawable itemBackground = mView.getItemBackground();
-        if (itemBackground == null) {
-            return;
-        }
-        float delta = (float) mView.getLineWidth() / 2;
-        int left = Math.round(mItemBorderRect.left - delta);
-        int top = Math.round(mItemBorderRect.top - delta);
-        int right = Math.round(mItemBorderRect.right + delta);
-        int bottom = Math.round(mItemBorderRect.bottom + delta);
 
-        itemBackground.setBounds(left, top, right, bottom);
-        itemBackground.setState(highlight ? HIGHLIGHT_STATES : mView.getDrawableState());
-        itemBackground.draw(canvas);
+        // Check if we should use color-based background
+        int currentBackgroundColor = mView.getCurrentBackgroundColor();
+
+        if (itemBackground == null) {
+            // No drawable background set, use color-based background
+            if (currentBackgroundColor != android.graphics.Color.TRANSPARENT) {
+                itemBackground = new android.graphics.drawable.ColorDrawable(currentBackgroundColor);
+            } else {
+                return; // No background to draw
+            }
+        } else if (itemBackground instanceof android.graphics.drawable.ColorDrawable &&
+                currentBackgroundColor != android.graphics.Color.TRANSPARENT) {
+            // Update existing ColorDrawable with current state color
+            ((android.graphics.drawable.ColorDrawable) itemBackground.mutate()).setColor(currentBackgroundColor);
+        }
+
+        // Draw background inside the stroke area, not covering it
+        float strokeWidth = (float) mView.getLineWidth();
+        int left = Math.round(mItemBorderRect.left + strokeWidth / 2);
+        int top = Math.round(mItemBorderRect.top + strokeWidth / 2);
+        int right = Math.round(mItemBorderRect.right - strokeWidth / 2);
+        int bottom = Math.round(mItemBorderRect.bottom - strokeWidth / 2);
+
+        // Ensure we have a valid area to draw
+        if (left < right && top < bottom) {
+            itemBackground.setBounds(left, top, right, bottom);
+            itemBackground.setState(highlight ? HIGHLIGHT_STATES : mView.getDrawableState());
+            itemBackground.draw(canvas);
+        }
     }
 
     /**
@@ -271,7 +317,7 @@ public class PinViewDrawer {
         );
 
         // Account for line width
-        radius -= mView.getLineWidth() / 2;
+        radius -= (float) mView.getLineWidth() / 2;
 
         // Draw the circle
         mPaint.setStyle(Paint.Style.STROKE);
@@ -405,7 +451,7 @@ public class PinViewDrawer {
         // Calculate starting X based on gravity
         float startX;
         int viewWidth = mView.getWidth() - mView.getPaddingStart() - mView.getPaddingEnd();
-        
+
         switch (mView.getGravity()) {
             case PinEntryView.GRAVITY_START:
                 startX = mView.getScrollX() + mView.getPaddingStart();
@@ -418,7 +464,7 @@ public class PinViewDrawer {
                 startX = mView.getScrollX() + mView.getPaddingStart() + (viewWidth - itemTotalWidth) / 2;
                 break;
         }
-        
+
         // Calculate item position
         float left = startX + i * (mView.getItemSpacing() + mView.getItemWidth()) + halfLineWidth;
         if (mView.getItemSpacing() == 0 && i > 0) {

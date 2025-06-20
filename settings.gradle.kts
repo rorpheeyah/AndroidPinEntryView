@@ -22,4 +22,3 @@ dependencyResolutionManagement {
 rootProject.name = "AndroidPinEntryView"
 include(":app")
 include(":pinentryview-java")
-include(":pinentryview-kotlin")
